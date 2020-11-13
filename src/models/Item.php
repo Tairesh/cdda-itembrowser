@@ -24,7 +24,7 @@ class Item implements Robbo\Presenter\PresentableInterface
 
     public function load($data)
     {
-        if (!isset($data->material)) {
+        if (!isset($data->material) || (is_array($data->material) && count($data->material) === 0)) {
             $data->material = array("null", "null");
         }
         if (!is_array($data->material)) {
@@ -213,7 +213,7 @@ class Item implements Robbo\Presenter\PresentableInterface
         }
 
         $val = 0;
-        if ($mat2 == "null" || $mat2->ident == "null") {
+        if ($mat2 == "null" || $mat2->id == "null") {
             $val = $thickness * $mat1->$variable;
         } else {
             $val = $thickness * (($mat1->$variable + $mat2->$variable) / 2);
@@ -280,7 +280,12 @@ class Item implements Robbo\Presenter\PresentableInterface
 
     public function getPierce()
     {
-        return isset($this->data->pierce) ? $this->data->pierce : 0;
+        if (isset($this->data->damage->armor_penetration)) {
+            return $this->data->damage->armor_penetration;
+        } else if (isset($this->data->pierce)) {
+            return $this->data->pierce;
+        }
+        return 0;
     }
 
     public function getMaterial1()
@@ -298,8 +303,8 @@ class Item implements Robbo\Presenter\PresentableInterface
         if (!$this->volume) {
             return false;
         }
-        $material1 = $this->material1->ident;
-        $material2 = $this->material2->ident;
+        $material1 = $this->material1->id;
+        $material2 = $this->material2->id;
 
         return in_array($material1, array_keys($this->cut_pairs)) and
               in_array($material2, array_keys($this->cut_pairs));
@@ -313,7 +318,7 @@ class Item implements Robbo\Presenter\PresentableInterface
         foreach ($materials as $material) {
             $results[] = [
                 "amount" => $this->volume / count($materials),
-                "item" => $this->repo->getModel("Item", $this->cut_pairs[$material->ident]),
+                "item" => $this->repo->getModel("Item", $this->cut_pairs[$material->id]),
             ];
         }
 
@@ -354,8 +359,12 @@ class Item implements Robbo\Presenter\PresentableInterface
 
         foreach ($ammotypes as &$ammotype) {
             $ammo_damage_multiplier = 1.0;
-            if ($this->data->type == "GUN" && $ammotype->prop_damage > 0) {
-                $ammo_damage_multiplier = $ammotype->prop_damage;
+            if ($this->data->type == "GUN") {
+                if ($ammotype->prop_damage > 0) {
+                    $ammo_damage_multiplier = $ammotype->prop_damage;
+                } else if (isset($ammotype->data->damage->constant_damage_multiplier)) {
+                    $ammo_damage_multiplier = $ammotype->data->damage->constant_damage_multiplier;
+                }
             }
 
             $result = floatval($ammotype->damage);
@@ -497,7 +506,7 @@ class Item implements Robbo\Presenter\PresentableInterface
         $materials = array(
             $this->material1,
         );
-        if ($this->material2->ident != "null") {
+        if ($this->material2->id != "null") {
             $materials[] = $this->material2;
         }
 
